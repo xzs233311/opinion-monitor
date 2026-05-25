@@ -205,7 +205,7 @@ with col_bar:
     st.plotly_chart(fig_bar, use_container_width=True)
 st.divider()
 
-# ====================== 时段分析 ======================
+# ====================== 时段分析（已修复热力图错误） ======================
 st.subheader("⏰ 时段评论热度分析")
 hour_stats = df.groupby("hour")["text"].count().reset_index().rename(columns={"hour":"小时","text":"评论数"})
 all_hours = pd.DataFrame({"小时":range(24)})
@@ -224,19 +224,18 @@ with col_h2:
     st.plotly_chart(fig_hline, use_container_width=True)
 with col_h3:
     hour_polar = df.groupby(["hour","polar"]).size().reset_index(name="count")
-    pivot = hour_polar.pivot(index="hour", columns="polar", values="count").fillna(0)
-    for h in range(24):
-        if h not in pivot.index:
-            pivot.loc[h] = [0,0,0,0,0]
-    pivot = pivot[["强烈负面","一般负面","中性","一般正面","强烈正面"]].sort_index()
-    fig_heat = px.imshow(pivot, text_auto=True, aspect="auto", title="时段×情感热力图", color_continuous_scale="Reds", template="plotly_dark", height=400)
+    all_polars = ["强烈负面","一般负面","中性","一般正面","强烈正面"]
+    pivot = hour_polar.pivot(index="hour", columns="polar", values="count").reindex(columns=all_polars, fill_value=0)
+    pivot = pivot.reindex(range(24), fill_value=0)
+    fig_heat = px.imshow(pivot, text_auto=True, aspect="auto", title="时段×情感热力图", 
+                         labels={"x": "情感倾向", "y": "小时"},
+                         color_continuous_scale="Reds", template="plotly_dark", height=400)
     st.plotly_chart(fig_heat, use_container_width=True)
 st.divider()
 
 # ====================== 高频关键词表格（替代词云） ======================
 st.subheader("📊 评论高频关键词")
 stopwords = set(['的', '了', '是', '我', '你', '他', '她', '它', '我们', '你们', '他们', '这', '那', '有', '在', '不', '也', '都', '说', '就', '要', '和', '与', '或', '但', '而', '并', '且', '如果', '虽然', '但是', '因为', '所以', '然后', '着', '过', '个', '种', '些', '能', '会', '可以', '没有', '还有', '或者', '而且', '所以', '这样', '那样', '怎么', '什么', '为什么', '哪里', '这里', '那里', '这个', '那个'])
-# 对每条评论分词
 word_list = []
 for text in df["text"]:
     words = jieba.lcut(text)
@@ -245,7 +244,6 @@ word_freq = Counter(word_list).most_common(20)
 freq_df = pd.DataFrame(word_freq, columns=["关键词", "出现次数"])
 st.dataframe(freq_df, use_container_width=True)
 st.caption("注：已过滤单字、数字和常见停用词，仅展示长度≥2的关键词。")
-
 st.divider()
 
 # ====================== 话题分析 ======================
@@ -256,9 +254,8 @@ fig_topic = px.bar(topic_count, x="话题", y="评论数", color="评论数", co
 fig_topic.update_layout(xaxis_tickangle=-45)
 st.plotly_chart(fig_topic, use_container_width=True)
 
-# 话题×情感交叉表
 cross = df.groupby(["topic", "polar"]).size().unstack(fill_value=0)
-cross = cross[["强烈负面","一般负面","中性","一般正面","强烈正面"]]
+cross = cross.reindex(columns=["强烈负面","一般负面","中性","一般正面","强烈正面"], fill_value=0)
 fig_heat = px.imshow(cross, text_auto=True, aspect="auto", title="话题×情感交叉热力图", color_continuous_scale="RdBu_r", template="plotly_dark", height=450)
 st.plotly_chart(fig_heat, use_container_width=True)
 st.divider()
